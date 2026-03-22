@@ -91,7 +91,7 @@ def build_mod_summary():
     ]
     if st.session_state.flavor != "None":
         parts.append(f"{st.session_state.flavor} syrup")
-    parts.append(f"{st.session_state.sweet} sweet")
+    parts.append(f"{st.session_state.pumps} pumps")
     if st.session_state.shots != 1:
         parts.append(f"{st.session_state.shots} shots")
     parts.extend(st.session_state.addons)
