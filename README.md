@@ -1,50 +1,65 @@
 # SoftwareEngFinalProject
 Gabriel Bernardes-Louis, Tayln Novotney, and Noah DeSousa Software Engineering Final Project. This project is a mobile ordering system for a cafe with some inventory tracking integrated into the software for management and ordering purposes. 
 
-# Database - 
-The database utilizes sqlite3, a built in python library for in-memory databases, allowing for easy serverless database utilization. 
+# Database
+The database utilizes sqlite3, a built-in Python library for in-memory databases, allowing for easy serverless database utilization.
 
-Included in this database are the following tables: 
-## Categories -
+Included in this database are the following tables:
+
+## Drinks
 id (primary key)  
 name  
-
-## Ingredients - 
-id (primary key)  
-name  
-category_id  
-unit  
-stock_qty  
-reorder_level  
-category_id (foreign key to primary key relationship on categories.id)  
-
-## Products -
-id (primary key)  
-name  
-category_id (foreign key to primary key relationship on categories.id)  
-price  
+base_price  
 is_active  
-category_id  
 
-## Product_Ingredients - 
+## Sizes
 id (primary key)  
-product_id (foreign key to primary key relationship on products.id)  
-ingredient_id (foreign key to primary key relationship on ingredients.id)  
-qty_required  
+name  
+price_add  
+default_shots  
 
-## Orders - 
+## Milks
+id (primary key)  
+name  
+
+## Flavors
+id (primary key)  
+name  
+
+## Addons
+id (primary key)  
+name  
+price  
+
+## Categories
+id (primary key)  
+name  
+
+## Orders
 id (primary key)  
 created_at  
+subtotal  
+tax_rate  
+tax_amount  
 total_price  
 status  
 
-## Order_Items - 
+## Order_Items
 id (primary key)  
-order_id (foreign key to primary key relationship on orders.id)   
-product_id (foreign key to primary key relationship on products.id)  
-quantity  
+order_id (foreign key to primary key relationship on orders.id)  
+drink_id (foreign key to primary key relationship on drinks.id)  
+size_id (foreign key to primary key relationship on sizes.id)  
+milk_id (foreign key to primary key relationship on milks.id)  
+flavor_id (foreign key to primary key relationship on flavors.id)  
+shots  
+temp  
+notes  
 unit_price  
 
+## Order_Item_Addons
+id (primary key)  
+order_item_id (foreign key to primary key relationship on order_items.id)  
+addon_id (foreign key to primary key relationship on addons.id)
 
 ### Note: Not all of these are in use for the purpose of the MVP presentation.
 

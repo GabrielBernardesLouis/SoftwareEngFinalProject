@@ -11,221 +11,205 @@ cursor = connection.cursor()
 # =============================================================================
 
 # -- 1. Categories ------------------------------------------------------------
-# A simple lookup table so products and ingredients can be grouped.
-# e.g. "Coffee", "Tea", "Milk", "Syrup", "Food"
-cursor.execute(
-    """
+cursor.execute("""
     CREATE TABLE IF NOT EXISTS categories (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        name        TEXT    NOT NULL UNIQUE
+        id    INTEGER PRIMARY KEY AUTOINCREMENT,
+        name  TEXT    NOT NULL UNIQUE
     )
-"""
-)
+""")
 
-# -- 2. Ingredients (Inventory) -----------------------------------------------
-# Raw stock items the shop buys and uses to make drinks.
-# e.g. whole milk, oat milk, espresso beans, vanilla syrup, caramel sauce
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS ingredients (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        name          TEXT    NOT NULL UNIQUE,
-        category_id   INTEGER NOT NULL,
-        unit          TEXT    NOT NULL,
-        stock_qty     REAL    NOT NULL DEFAULT 0,
-        reorder_level REAL    NOT NULL DEFAULT 0,
-        FOREIGN KEY (category_id) REFERENCES categories(id)
-    )
-"""
-)
-
-# -- 3. Products --------------------------------------------------------------
-# Every drink or food item that appears on the menu.
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS products (
+# -- 2. Drinks ----------------------------------------------------------------
+# Matches the DRINKS dict in the frontend exactly.
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS drinks (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         name        TEXT    NOT NULL UNIQUE,
-        category_id INTEGER NOT NULL,
-        price       REAL    NOT NULL,
-        is_active   INTEGER NOT NULL DEFAULT 1,
-        FOREIGN KEY (category_id) REFERENCES categories(id)
+        base_price  REAL    NOT NULL,
+        is_active   INTEGER NOT NULL DEFAULT 1
     )
-"""
-)
+""")
 
-# -- 4. Product-Ingredient Recipe ---------------------------------------------
-# Links each product to the ingredients it consumes and how much.
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS product_ingredients (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_id    INTEGER NOT NULL,
-        ingredient_id INTEGER NOT NULL,
-        qty_required  REAL    NOT NULL,
-        FOREIGN KEY (product_id)    REFERENCES products(id),
-        FOREIGN KEY (ingredient_id) REFERENCES ingredients(id),
-        UNIQUE (product_id, ingredient_id)
-    )
-"""
-)
-
-# -- 5. Orders ----------------------------------------------------------------
-# One row per customer transaction at the register.
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS orders (
+# -- 3. Sizes -----------------------------------------------------------------
+# Matches SIZES and SIZE_SHOTS in the frontend.
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sizes (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
-        created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
-        total_price  REAL    NOT NULL DEFAULT 0,
-        status       TEXT    NOT NULL DEFAULT 'open'
+        name         TEXT    NOT NULL UNIQUE,  -- e.g. "Small (8oz)"
+        price_add    REAL    NOT NULL DEFAULT 0.00,
+        default_shots INTEGER NOT NULL DEFAULT 1
     )
-"""
-)
+""")
 
-# -- 6. Order Items -----------------------------------------------------------
-# The individual line items within an order.
-cursor.execute(
-    """
+# -- 4. Milks -----------------------------------------------------------------
+# Matches MILKS list in the frontend.
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS milks (
+        id   INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT    NOT NULL UNIQUE   -- e.g. "Whole", "Oat", "None"
+    )
+""")
+
+# -- 5. Flavors ---------------------------------------------------------------
+# Matches FLAVORS list in the frontend.
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS flavors (
+        id   INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT    NOT NULL UNIQUE   -- e.g. "None", "Vanilla", "Caramel"
+    )
+""")
+
+# -- 6. Add-ons ---------------------------------------------------------------
+# Matches ADDONS dict in the frontend.
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS addons (
+        id    INTEGER PRIMARY KEY AUTOINCREMENT,
+        name  TEXT    NOT NULL UNIQUE,
+        price REAL    NOT NULL DEFAULT 0.00
+    )
+""")
+
+# -- 7. Orders ----------------------------------------------------------------
+# One row per customer transaction. Stores tax rate as a snapshot.
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS orders (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        subtotal    REAL    NOT NULL DEFAULT 0.00,
+        tax_rate    REAL    NOT NULL DEFAULT 0.0625,
+        tax_amount  REAL    NOT NULL DEFAULT 0.00,
+        total_price REAL    NOT NULL DEFAULT 0.00,
+        status      TEXT    NOT NULL DEFAULT 'open'  -- open | completed | voided
+    )
+""")
+
+# -- 8. Order Items -----------------------------------------------------------
+# One row per drink in an order, capturing every customization made.
+cursor.execute("""
     CREATE TABLE IF NOT EXISTS order_items (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id    INTEGER NOT NULL,
-        product_id  INTEGER NOT NULL,
-        quantity    INTEGER NOT NULL DEFAULT 1,
-        unit_price  REAL    NOT NULL,
-        FOREIGN KEY (order_id)   REFERENCES orders(id),
-        FOREIGN KEY (product_id) REFERENCES products(id)
+        drink_id    INTEGER NOT NULL,
+        size_id     INTEGER NOT NULL,
+        milk_id     INTEGER,
+        flavor_id   INTEGER,
+        shots       INTEGER NOT NULL DEFAULT 2,
+        temp        TEXT    NOT NULL DEFAULT 'Hot',   -- 'Hot' or 'Iced'
+        notes       TEXT    DEFAULT '',
+        unit_price  REAL    NOT NULL,                 -- final price snapshot
+        FOREIGN KEY (order_id)  REFERENCES orders(id),
+        FOREIGN KEY (drink_id)  REFERENCES drinks(id),
+        FOREIGN KEY (size_id)   REFERENCES sizes(id),
+        FOREIGN KEY (milk_id)   REFERENCES milks(id),
+        FOREIGN KEY (flavor_id) REFERENCES flavors(id)
     )
-"""
-)
+""")
+
+# -- 9. Order Item Add-ons ----------------------------------------------------
+# Separate table because one order item can have multiple add-ons.
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS order_item_addons (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_item_id INTEGER NOT NULL,
+        addon_id      INTEGER NOT NULL,
+        FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+        FOREIGN KEY (addon_id)      REFERENCES addons(id),
+        UNIQUE (order_item_id, addon_id)
+    )
+""")
 
 connection.commit()
 print("Database schema created successfully.")
 
 
 # =============================================================================
-# SEED DATA
+# SEED DATA  —  mirrors the frontend constants exactly
 # =============================================================================
 
-categories = [
+# Categories
+cursor.executemany("INSERT OR IGNORE INTO categories (name) VALUES (?)", [
+    ("Espresso Drinks",),
     ("Coffee",),
     ("Tea",),
-    ("Milk",),
-    ("Syrup",),
-    ("Food",),
-]
-cursor.executemany("INSERT OR IGNORE INTO categories (name) VALUES (?)", categories)
+    ("Other",),
+])
 
-# (name, category_name, unit, stock_qty, reorder_level)
-ingredients = [
-    ("Espresso Beans", "Coffee", "lbs", 10.0, 2.0),
-    ("Whole Milk", "Milk", "oz", 256.0, 32.0),
-    ("Oat Milk", "Milk", "oz", 128.0, 16.0),
-    ("Skim Milk", "Milk", "oz", 128.0, 16.0),
-    ("Vanilla Syrup", "Syrup", "pumps", 50.0, 10.0),
-    ("Caramel Sauce", "Syrup", "pumps", 50.0, 10.0),
-    ("Hazelnut Syrup", "Syrup", "pumps", 50.0, 10.0),
-    ("Black Tea Bags", "Tea", "bags", 40.0, 5.0),
-    ("Green Tea Bags", "Tea", "bags", 40.0, 5.0),
-]
-cursor.executemany(
-    """
-    INSERT OR IGNORE INTO ingredients (name, category_id, unit, stock_qty, reorder_level)
-    VALUES (
-        ?,
-        (SELECT id FROM categories WHERE name = ?),
-        ?, ?, ?
-    )
-""",
-    ingredients,
-)
+# Drinks  —  matches DRINKS dict
+cursor.executemany("INSERT OR IGNORE INTO drinks (name, base_price) VALUES (?, ?)", [
+    ("Espresso",      2.50),
+    ("Latte",         4.25),
+    ("Pour-over",     4.00),
+    ("Hot Chocolate", 3.75),
+    ("Cold Brew",     4.50),
+    ("Matcha Latte",  4.75),
+    ("Chai Latte",    4.25),
+    ("Cappuccino",    4.00),
+])
 
-# (name, category_name, price)
-products = [
-    ("Espresso", "Coffee", 2.50),
-    ("Latte", "Coffee", 4.75),
-    ("Cappuccino", "Coffee", 4.50),
-    ("Cold Brew", "Coffee", 4.25),
-    ("Vanilla Latte", "Coffee", 5.25),
-    ("Caramel Macchiato", "Coffee", 5.50),
-    ("Chai Latte", "Tea", 4.50),
-    ("Green Tea Latte", "Tea", 4.75),
-]
-cursor.executemany(
-    """
-    INSERT OR IGNORE INTO products (name, category_id, price)
-    VALUES (
-        ?,
-        (SELECT id FROM categories WHERE name = ?),
-        ?
-    )
-""",
-    products,
-)
+# Sizes  —  matches SIZES and SIZE_SHOTS dicts
+cursor.executemany("INSERT OR IGNORE INTO sizes (name, price_add, default_shots) VALUES (?, ?, ?)", [
+    ("Small (8oz)",   0.00, 1),
+    ("Medium (12oz)", 0.50, 2),
+    ("Large (16oz)",  1.00, 3),
+])
 
-# (product_name, ingredient_name, qty_required)
-recipes = [
-    ("Espresso", "Espresso Beans", 0.05),
-    ("Latte", "Espresso Beans", 0.05),
-    ("Latte", "Whole Milk", 8.0),
-    ("Cappuccino", "Espresso Beans", 0.05),
-    ("Cappuccino", "Whole Milk", 4.0),
-    ("Cold Brew", "Espresso Beans", 0.10),
-    ("Vanilla Latte", "Espresso Beans", 0.05),
-    ("Vanilla Latte", "Whole Milk", 8.0),
-    ("Vanilla Latte", "Vanilla Syrup", 2.0),
-    ("Caramel Macchiato", "Espresso Beans", 0.05),
-    ("Caramel Macchiato", "Whole Milk", 8.0),
-    ("Caramel Macchiato", "Caramel Sauce", 2.0),
-    ("Chai Latte", "Black Tea Bags", 1.0),
-    ("Chai Latte", "Whole Milk", 8.0),
-    ("Green Tea Latte", "Green Tea Bags", 1.0),
-    ("Green Tea Latte", "Oat Milk", 8.0),
-]
-cursor.executemany(
-    """
-    INSERT OR IGNORE INTO product_ingredients (product_id, ingredient_id, qty_required)
-    VALUES (
-        (SELECT id FROM products    WHERE name = ?),
-        (SELECT id FROM ingredients WHERE name = ?),
-        ?
-    )
-""",
-    recipes,
-)
+# Milks  —  matches MILKS list
+cursor.executemany("INSERT OR IGNORE INTO milks (name) VALUES (?)", [
+    ("Whole",),
+    ("Oat",),
+    ("Almond",),
+    ("Soy",),
+    ("Skim",),
+    ("None",),
+])
+
+# Flavors  —  matches FLAVORS list
+cursor.executemany("INSERT OR IGNORE INTO flavors (name) VALUES (?)", [
+    ("None",),
+    ("Vanilla",),
+    ("Caramel",),
+    ("Hazelnut",),
+    ("Brown Sugar",),
+])
+
+# Add-ons  —  matches ADDONS dict
+cursor.executemany("INSERT OR IGNORE INTO addons (name, price) VALUES (?, ?)", [
+    ("Extra Shot",     0.75),
+    ("Cold Foam",      0.75),
+    ("Whipped Cream",  0.50),
+    ("Caramel Drizzle",0.50),
+])
 
 connection.commit()
 print("Seed data inserted successfully.")
 
 
 # =============================================================================
-# CLI DEBUG
+# SANITY CHECK
 # =============================================================================
 
-print("\n--- Menu ---")
-cursor.execute(
-    """
-    SELECT p.name, c.name AS category, p.price
-    FROM products p
-    JOIN categories c ON c.id = p.category_id
-    WHERE p.is_active = 1
-    ORDER BY c.name, p.name
-"""
-)
+print("\n--- Drinks ---")
+cursor.execute("SELECT name, base_price FROM drinks WHERE is_active = 1 ORDER BY name")
 for row in cursor.fetchall():
-    print(f"  {row[1]:<10} {row[0]:<22} ${row[2]:.2f}")
+    print(f"  {row[0]:<20} ${row[1]:.2f}")
 
-print("\n--- Inventory ---")
-cursor.execute(
-    """
-    SELECT i.name, c.name AS category, i.stock_qty, i.unit, i.reorder_level
-    FROM ingredients i
-    JOIN categories c ON c.id = i.category_id
-    ORDER BY c.name, i.name
-"""
-)
+print("\n--- Sizes ---")
+cursor.execute("SELECT name, price_add, default_shots FROM sizes ORDER BY price_add")
 for row in cursor.fetchall():
-    flag = "  <-- LOW STOCK" if row[2] <= row[4] else ""
-    print(f"  {row[1]:<8} {row[0]:<22} {row[2]:>6} {row[3]}{flag}")
+    print(f"  {row[0]:<18} +${row[1]:.2f}   {row[2]} shot(s)")
+
+print("\n--- Milks ---")
+cursor.execute("SELECT name FROM milks")
+for row in cursor.fetchall():
+    print(f"  {row[0]}")
+
+print("\n--- Flavors ---")
+cursor.execute("SELECT name FROM flavors")
+for row in cursor.fetchall():
+    print(f"  {row[0]}")
+
+print("\n--- Add-ons ---")
+cursor.execute("SELECT name, price FROM addons ORDER BY price DESC")
+for row in cursor.fetchall():
+    print(f"  {row[0]:<20} ${row[1]:.2f}")
 
 connection.close()
