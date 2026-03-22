@@ -1,0 +1,2 @@
+# Ignore database changes in version control
+*.db
