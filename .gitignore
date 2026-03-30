@@ -1,2 +1,5 @@
 # Ignore database changes in version control
 *.db
+
+# Ignore __pycache__
+__pycache__
