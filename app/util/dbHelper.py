@@ -23,11 +23,17 @@ def execute(query, params=()):
     conn.commit()
 
 def fetch_all(query, params=()):
-    """Fetch all rows from a query."""
+    """Fetch all rows as a list of dictionaries with column names."""
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(query, params)
-    return cur.fetchall()
+    
+    # Get column names from cursor.description
+    columns = [description[0] for description in cur.description]
+    rows = cur.fetchall()
+    
+    # Return list of dicts: [{col1: val1, col2: val2}, ...]
+    return [dict(zip(columns, row)) for row in rows]
 
 # ----------------------
 # Initialize Database Tables
