@@ -61,7 +61,10 @@ id (primary key)
 order_item_id (foreign key to primary key relationship on order_items.id)  
 addon_id (foreign key to primary key relationship on addons.id)
 
-### Note: Not all of these are in use for the purpose of the MVP presentation.
+
+# Orders - 
+The orders page displays all orders that are kept in the database, with a flag that marks each as completed/incomplete. This allows for analytics and other auxillary use cases for the information gathered from customers and purchases.
 
 
-Sprint Week 1 Doc: https://docs.google.com/document/d/14mLJaFsZXAS3qj4s3aCTouInXwaFU6izfTYI6VRuM98/edit?usp=sharing
+### Build Command: 
+streamlit run app/POSapp.py
